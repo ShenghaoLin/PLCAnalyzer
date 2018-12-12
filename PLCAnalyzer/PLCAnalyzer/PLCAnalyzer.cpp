@@ -116,7 +116,7 @@ namespace {
 								if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) 
 									errs() << "related global value: " << gv -> getName() << "\n";
 								else
-									errs() << "related constant: " << CI -> getName() << "\n";
+									errs() << "related constant: " << CI -> getUniqueInteger() << "\n";
 							
 								continue;
 							
@@ -163,7 +163,7 @@ namespace {
 									if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) 
 										errs() << "related global value: " << gv -> getName() << "\n";
 									else
-										errs() << "related constant: " << c -> getName() << "\n";
+										errs() << "related constant: " << c -> getUniqueInteger() << "\n";
 							
 									continue;
 							
