@@ -94,7 +94,8 @@ namespace {
 
 					if (queried.find(dd) != queried.end()) continue;
 					queried.insert(dd);
-					
+				
+
 					if (MemoryPhi *phi = dyn_cast<MemoryPhi>(dd)) {
 						for (const auto &op : phi -> operands()) {
 							to_query.push(op);
@@ -102,6 +103,12 @@ namespace {
 
 						errs() << "phi\n";
 					}
+					
+					else if (MemoryDef *def = dyn_cast<MemoryDef>(dd)) {
+						if (def)
+						to_query.push(def -> getMemoryInst());
+					}
+
 					else if (Instruction* d = dyn_cast<Instruction>(dd)) {
 
 						if (d -> getOpcode () == Instruction::Store) {
@@ -115,7 +122,7 @@ namespace {
 							
 								if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) 
 									errs() << "related global value: " << gv -> getName() << "\n";
-								else
+								else if (CI)
 									errs() << "related constant: " << CI -> getUniqueInteger() << "\n";
 							
 								continue;
