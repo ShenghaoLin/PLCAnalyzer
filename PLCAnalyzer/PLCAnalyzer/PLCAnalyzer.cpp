@@ -85,6 +85,13 @@ namespace {
 					Value *dd = to_query.front();
 
 					to_query.pop();
+
+					if (dd == NULL) {
+						errs() << "related with function input value\n";
+
+						continue;
+					}
+
 					if (queried.find(dd) != queried.end()) continue;
 					queried.insert(dd);
 					
@@ -95,51 +102,78 @@ namespace {
 
 						errs() << "phi\n";
 					}
-					else if (Instruction* d = dyn_cast<Instruction>(dd))
-					if (d -> getOpcode () == Instruction::Store) {
-						Value *v = d -> getOperand(0);
-						if (Constant* CI = dyn_cast<Constant>(v)) {
-							if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) 
-								errs() << "related global value:" << gv -> getName() << "\n";
-							continue;
-						}
-						else {
-							to_query.push(dyn_cast<Instruction>(v));
-						}
-						errs() << "store\n";
-					}
-					
+					else if (Instruction* d = dyn_cast<Instruction>(dd)) {
 
-					else if (d -> getOpcode() == Instruction::Load) {
-						if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
-							errs() <<"related global value: " << gv ->getName() << "\n";
-							continue;
+						if (d -> getOpcode () == Instruction::Store) {
+							
+							MemoryDef *MD = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(d));
+							errs() << "store " << MD -> getID() <<"\n";
+							
+							Value *v = d -> getOperand(0);
+							
+							if (Constant* CI = dyn_cast<Constant>(v)) {
+							
+								if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) 
+									errs() << "related global value: " << gv -> getName() << "\n";
+								else
+									errs() << "related constant: " << CI -> getName() << "\n";
+							
+								continue;
+							
+							}
+							
+							else {
+								to_query.push(dyn_cast<Instruction>(v));
+							}
 						}
-						MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
+						
 
-						MemoryAccess *UO = MU -> getDefiningAccess();
-						if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
-							to_query.push(MD -> getMemoryInst());
-						}
-						else {
-							to_query.push(UO);
-						}
-						errs() << "load\n";
-					}
-
-					else {
-						for (int j = 0; j < d -> getNumOperands(); ++ j) {
-							Value *v = d -> getOperand(j);
-							if (Constant *c = dyn_cast<Constant>(v)) {
-								if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) 
-									errs() << "related global value:" << gv -> getName() << "\n";
+						else if (d -> getOpcode() == Instruction::Load) {
+							
+							errs() << "load\n";
+							
+							if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
+								errs() <<"related global value: " << gv ->getName() << "\n";
 								continue;
 							}
-							else if (Instruction *inst = dyn_cast<Instruction>(v)) {
-								to_query.push(inst);
+							
+							MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
+
+							MemoryAccess *UO = MU -> getDefiningAccess();
+							
+							if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
+								to_query.push(MD -> getMemoryInst());
+							}
+							
+							else {
+								to_query.push(UO);
 							}
 						}
-						errs() << "else\n";
+
+						else {
+
+							errs() << "else\n";
+
+							for (int j = 0; j < d -> getNumOperands(); ++ j) {
+
+								Value *v = d -> getOperand(j);
+							
+								if (Constant *c = dyn_cast<Constant>(v)) {
+							
+									if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) 
+										errs() << "related global value: " << gv -> getName() << "\n";
+									else
+										errs() << "related constant: " << c -> getName() << "\n";
+							
+									continue;
+							
+								}
+							
+								else if (Instruction *inst = dyn_cast<Instruction>(v)) {
+									to_query.push(inst);
+								}
+							}
+						}
 					}
 
 					
