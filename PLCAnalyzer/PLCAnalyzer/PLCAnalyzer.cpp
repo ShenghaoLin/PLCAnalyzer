@@ -16,6 +16,11 @@
 #include "llvm/PassAnalysisSupport.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Metadata.h"
+#include "llvm/IR/IntrinsicInst.h"
+
+
 
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
@@ -78,8 +83,16 @@ namespace {
 				to_query.push(store_list[i]);
 				
 				MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_list[i]));
-				if (MA && MA ->getID())
-				errs().write('\n') << MA -> getID() << " " << store_list[i] -> getOperand(1) -> getName() << ": \n";
+				if (MA && MA ->getID()){
+					errs().write('\n') << MA -> getID();
+					if (store_list[i] -> getOperand(1) -> hasName()) {
+						errs() << " " << store_list[i] -> getOperand(1) -> getName() << ": \n";
+					}
+					else {
+						errs() << " " << getOriginalName(store_list[i] -> getOperand(1), &F) << ": \n"; 
+					}
+				}
+
 
 				while (to_query.size()) {
 					Value *dd = to_query.front();
@@ -189,6 +202,28 @@ namespace {
 
 			return false;
         }
+
+
+		MDNode* findVar(Value* V, Function* F) {
+  			for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
+				BasicBlock *bb = &*iter;
+				for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++ iter_i){
+				Instruction* I = &*iter_i;
+				if (DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
+					if (DbgDeclare->getAddress() == V) return DbgDeclare->getVariable();
+				} else if (DbgValueInst* DbgValue = dyn_cast<DbgValueInst>(I)) {
+					if (DbgValue->getValue() == V) return DbgValue->getVariable();
+				}}
+			}
+			return NULL;
+		}
+
+		StringRef getOriginalName(Value* V, Function* F) {
+			MDNode* Var = findVar(V, F);
+  			if (!Var) return "tmp";
+
+  			return dyn_cast<DIVariable>(Var) -> getName();
+		}
 
         void getAnalysisUsage(AnalysisUsage &AU) const {
  
