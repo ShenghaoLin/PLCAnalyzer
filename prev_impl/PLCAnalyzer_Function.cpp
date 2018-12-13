@@ -1,7 +1,6 @@
 //The pass file for final project of EECS583 in Fall 2018
 //@auther: Shenghao Lin, Xumiao Zhang
 
-#include "llvm/IR/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/BasicBlock.h"
@@ -40,31 +39,18 @@ using namespace llvm;
 
 namespace {
 
-    struct PLCAnalyzer : public ModulePass {
+    struct PLCAnalyzer : public FunctionPass {
         
         static char ID; 
 
-        PLCAnalyzer() : ModulePass(ID) {}
+        PLCAnalyzer() : FunctionPass(ID) {}
 
-        bool runOnModule(Module &M) override {
-		
-			for (Module::iterator f = M.begin(); f != M.end(); f ++) {
-                //MemorySSAWrapperPass *MSSA_pass = &getAnalysis<MemorySSAWrapperPass>(*f);
-                //MemorySSA *MSSA = &(MSSA_pass -> getMSSA());
-				//functionMemoryDependence(*f, MSSA);
-                Function *F = &(*f);
-                string s = F -> getName();
-                if (s.find("llvm.dbg") != 0) {
-                    functionMemoryDependence(*f);
-                }
-			}
-			return false;
-        }
+        bool runOnFunction(Function &F) override {
 
+			DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+			AliasAnalysis *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+			MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>().getMSSA();
 
-        bool functionMemoryDependence(Function &F) {
-
-            MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>(F).getMSSA();
 			std::vector<Instruction *> store_list;	
 
 			errs() << "\n\n";
@@ -73,12 +59,15 @@ namespace {
 			for (Function::iterator b = F.begin(); b != F.end(); b++) {
 				BasicBlock *bb = &(*b);
 				
+				MemoryPhi *phi = MSSA -> getMemoryAccess(bb);
 				//if (phi != NULL) {
 				//
 				//	phi -> print(errs());
 				//	errs().write('\n');
 				//}
 				
+				errs() << "BB\n";
+
 				for (BasicBlock::iterator i_iter = bb -> begin(); i_iter != bb -> end(); ++ i_iter) {
 					Instruction *I = &(*i_iter);
 					if (I -> getOpcode() == Instruction::Store) {
@@ -89,13 +78,10 @@ namespace {
 							if (string("llvm.dbg.declare").compare(call_inst -> getCalledFunction() -> getName()) == 0)
 								continue;
 
-                            functionMemoryDependence(*call_inst -> getCalledFunction());
 						}	
 					}
 				}
 			}
-
-            MSSA = &getAnalysis<MemorySSAWrapperPass>(F).getMSSA();
 
 			for (int i = 0; i < store_list.size(); i ++) {
 				set<Value *> queried;
@@ -268,6 +254,11 @@ namespace {
 		}
 
         void getAnalysisUsage(AnalysisUsage &AU) const {
+ 
+			AU.addRequired<DominatorTreeWrapperPass>();
+			AU.addRequired<BranchProbabilityInfoWrapperPass>();
+            AU.addRequired<BlockFrequencyInfoWrapperPass>();
+			AU.addRequired<AAResultsWrapperPass>();
 			AU.addRequired<MemorySSAWrapperPass>();
         }
     };
