@@ -53,6 +53,9 @@ namespace {
 
 			std::vector<Instruction *> store_list;	
 
+			errs() << "\n\n";
+			errs().write_escaped(F.getName()) << "\n";
+
 			for (Function::iterator b = F.begin(); b != F.end(); b++) {
 				BasicBlock *bb = &(*b);
 				
@@ -127,8 +130,15 @@ namespace {
 						if (d -> getOpcode () == Instruction::Store) {
 							
 							MemoryDef *MD = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(d));
-							errs() << "store " << MD -> getID() <<"\n";
-							
+							errs() << "store " << MD -> getID();
+
+							if (d -> getOperand(1) -> hasName()) {
+								errs() << " " << d -> getOperand(1) -> getName() << "\n";
+							}
+							else {
+								errs() << " " << getOriginalName(d -> getOperand(1), &F) << "\n";
+							}
+
 							Value *v = d -> getOperand(0);
 							
 							if (Constant* CI = dyn_cast<Constant>(v)) {
@@ -150,8 +160,14 @@ namespace {
 
 						else if (d -> getOpcode() == Instruction::Load) {
 							
-							errs() << "load\n";
-							
+							errs() << "load";
+							if (d -> getOperand(0) -> hasName()) {
+								errs() << " " << d -> getOperand(0) -> getName() << ": \n";
+							}
+							else {
+								errs() << " " << getOriginalName(d -> getOperand(0), &F) << ": \n"; 
+							}
+
 							if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
 								errs() <<"related global value: " << gv ->getName() << "\n";
 								continue;
@@ -172,7 +188,7 @@ namespace {
 
 						else {
 
-							errs() << "else\n";
+							// errs() << "else\n";
 
 							for (int j = 0; j < d -> getNumOperands(); ++ j) {
 
@@ -220,7 +236,7 @@ namespace {
 
 		StringRef getOriginalName(Value* V, Function* F) {
 			MDNode* Var = findVar(V, F);
-  			if (!Var) return "tmp";
+  			if (!Var) return "UNKNOWN";
 
   			return dyn_cast<DIVariable>(Var) -> getName();
 		}
