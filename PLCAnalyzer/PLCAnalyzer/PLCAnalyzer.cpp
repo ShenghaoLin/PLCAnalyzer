@@ -69,12 +69,6 @@ namespace {
 				for (BasicBlock::iterator i_iter = bb -> begin(); i_iter != bb -> end(); ++ i_iter) {
 					Instruction *I = &(*i_iter);
 					if (I -> getOpcode() == Instruction::Store) {
-						//MemoryUseOrDef *ud = MSSA -> getMemoryAccess(I);
-						//if (ud != NULL) {
-						//
-						//	ud -> print(errs());
-						//	errs().write('\n');
-						//}
 						store_list.push_back(I);						
 					}
 				}
@@ -121,8 +115,14 @@ namespace {
 					}
 					
 					else if (MemoryDef *def = dyn_cast<MemoryDef>(dd)) {
-						if (def)
-						to_query.push(def -> getMemoryInst());
+
+						if (def) {
+
+							to_query.push(def -> getMemoryInst());
+							if (to_query.back() == NULL) {
+								errs() << "bitch\n";
+							}
+						}
 					}
 
 					else if (Instruction* d = dyn_cast<Instruction>(dd)) {
@@ -151,7 +151,9 @@ namespace {
 								continue;
 							
 							}
-							
+							else if (dyn_cast<Instruction>(v) == NULL) {
+								errs() << "related with input value: " << getOriginalName(d -> getOperand(1), &F) << "\n";
+							}
 							else {
 								to_query.push(dyn_cast<Instruction>(v));
 							}
@@ -171,14 +173,15 @@ namespace {
 							if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
 								errs() <<"related global value: " << gv ->getName() << "\n";
 								continue;
-							}
-							
+							}	
 							MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
 
 							MemoryAccess *UO = MU -> getDefiningAccess();
 							
 							if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
+
 								to_query.push(MD -> getMemoryInst());
+
 							}
 							
 							else {
@@ -188,7 +191,6 @@ namespace {
 
 						else {
 
-							// errs() << "else\n";
 
 							for (int j = 0; j < d -> getNumOperands(); ++ j) {
 
