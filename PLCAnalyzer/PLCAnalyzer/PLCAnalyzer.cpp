@@ -38,262 +38,413 @@ using namespace llvm;
 
 #define DEBUG_TYPE "plcanalyzer"
 
+struct Transition{
+	Function *F;
+	Value *V;
+	int k;
+
+	Transition(Function *_F, Value *_V, int _k) : F(_F), V(_V), k(_k) {}
+};
+
 namespace {
 
     struct PLCAnalyzer : public ModulePass {
         
-        static char ID; 
+        static char ID;
+        map<Function*, map<Value*, vector<vector<pair<Value *, int>>>>> critical_paths;
+        map<Function*, map<int, vector<vector<pair<Value *, int>>>>> potential_paths;
+
+        vector<Transition> temp_stack;
 
         PLCAnalyzer() : ModulePass(ID) {}
 
         bool runOnModule(Module &M) override {
-		
-			for (Module::iterator f = M.begin(); f != M.end(); f ++) {
+        	
+            for (Module::iterator f = M.begin(); f != M.end(); f ++) {
                 //MemorySSAWrapperPass *MSSA_pass = &getAnalysis<MemorySSAWrapperPass>(*f);
                 //MemorySSA *MSSA = &(MSSA_pass -> getMSSA());
-				//functionMemoryDependence(*f, MSSA);
+                //functionMemoryDependence(*f, MSSA);
+
+
                 Function *F = &(*f);
                 string s = F -> getName();
                 if (s.find("llvm.dbg") != 0) {
                     functionMemoryDependence(*f);
                 }
-			}
-			return false;
+
+                for (auto iter = critical_paths[F].begin(); iter != critical_paths[F].end(); ++iter) {
+                	errs() << "\n";
+                	Value *v = iter -> first;
+                	vector<vector<pair<Value *, int>>> paths = iter -> second;
+                	for (auto path : paths) {
+                		errs() << v << ": ";
+                		for (auto element : path) {
+                			errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
+                		}
+                	}
+                }
+            }
+
+            errs() << "\n";
+
+            for (Module::iterator f = M.begin(); f != M.end(); f ++) {
+            	Function *F = &(*f);
+                string s = F -> getName();
+
+                if (s.find("llvm.dbg") != 0) {
+                	for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
+		        		BasicBlock* bb = &(*iter);
+
+		        		for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++iter_i) {
+		        			Instruction* inst = &(*iter_i);
+
+		        			if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
+		        				for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+	                           		Value *arg = call_inst -> getArgOperand(i);
+	                           		for (auto path : critical_paths[F][arg]) {
+	                           			for (int i = path.size() - 1; i >= 0; i --) {
+	                           				temp_stack.push_back(Transition(F, path[i].first, path[i].second));
+	                           			}
+	                           			// errs() << "at least I'm here" << call_inst -> getCalledFunction() -> getName() << "\n";
+	                           			callDependence(call_inst -> getCalledFunction(), i);
+
+	                           			for (int i = path.size() - 1; i >= 0; i --) {
+	                           				temp_stack.pop_back();
+	                           			}
+	                           		}
+	                           	}
+
+		        			}
+		        		}
+		        	}
+                }
+            }
+
+            return false;
+        }
+
+        void callDependence(Function *F, int arg_num) {
+
+        	for (auto path : potential_paths[F][arg_num]) {
+    			for (auto t : temp_stack) {
+    				errs() << t.F -> getName() << ": " << t.k << " " << getOriginalName(t.V, t.F) << " -> ";
+    			}
+
+    			for (int i = path.size() - 1; i >= 0; i --) {
+    				errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
+    				if (i != 0) errs() << " -> ";
+    			}
+    			errs() << "\n";
+        		
+        	}
         }
 
 
         bool functionMemoryDependence(Function &F) {
 
             MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>(F).getMSSA();
-			std::vector<Instruction *> store_list;	
+            std::vector<Value *> store_list;    
 
-			errs() << "\n\n";
-			errs().write_escaped(F.getName()) << "\n";
+            errs() << "\n\n";
+            errs().write_escaped(F.getName()) << "\n";
 
-			for (Function::iterator b = F.begin(); b != F.end(); b++) {
-				
-				BasicBlock *bb = &(*b);
-				
-				for (BasicBlock::iterator i_iter = bb -> begin(); i_iter != bb -> end(); ++ i_iter) {
-					Instruction *I = &(*i_iter);
-					if (I -> getOpcode() == Instruction::Store) {
-						store_list.push_back(I);						
-					}
-					if (I -> getOpcode() == Instruction::Call) {
-						if (CallInst *call_inst = dyn_cast<CallInst>(I)) {
-							if (string("llvm.dbg.declare").compare(call_inst -> getCalledFunction() -> getName()) == 0)
-								continue;
+            map<Value *, int> args;
 
-						}	
-					}
-				}
-			}
+            int num = 0;
+            for (auto iter = F.arg_begin(); iter != F.arg_end(); ++iter) {
+            	Argument *arg = *(&iter);
+            	errs() << getOriginalName(arg, &F) << " " << arg -> getName() << " " ;
+                args[arg] = num ++;
+            }
+            errs() << "\n";
 
-			for (int i = 0; i < store_list.size(); i ++) {
-				set<Value *> queried;
-				vector<pair<Value *, Value *>> to_query;
+            map<Function *, vector<Value *>> arguments;
+            
 
-				vector<pair<Value *, Value *>> stack;
-				
-				MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_list[i]));
+            for (Function::iterator b = F.begin(); b != F.end(); b++) {
+                
+                BasicBlock *bb = &(*b);
+                
+                for (BasicBlock::iterator i_iter = bb -> begin(); i_iter != bb -> end(); ++ i_iter) {
+                    Instruction *I = &(*i_iter);
+                    if (I -> getOpcode() == Instruction::Store) {
+                        store_list.push_back(I);                        
+                    }
+                    if (I -> getOpcode() == Instruction::Call) {
+                        if (CallInst *call_inst = dyn_cast<CallInst>(I)) {
+                            if (string("llvm.dbg.declare").compare(call_inst -> getCalledFunction() -> getName()) == 0)
+                                continue;
 
-				if (MA && MA -> getID()){
-					errs().write('\n') << MA -> getID();
-					if (store_list[i] -> getOperand(1) -> hasName()) {
-						errs() << " " << store_list[i] -> getOperand(1) -> getName() << ": \n";
-					}
-					else {
-						errs() << " " << getOriginalName(store_list[i] -> getOperand(1), &F) << ": \n"; 
-					}
-				}
+                            errs() << call_inst -> getCalledFunction() -> getName() << "\n";
 
-				to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(MA)));
+                            arguments[call_inst -> getCalledFunction()] = vector<Value *>();
 
-				while (to_query.size()) {
-					pair<Value *, Value *> tmp = to_query.back();
-					Value *dd = tmp.second;
+                           	for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+                           		Value *arg = call_inst -> getArgOperand(i);
+                           		arguments[call_inst -> getCalledFunction()].push_back(arg);
 
-					to_query.pop_back();
+                           		store_list.push_back(arg);
+                           	    //errs() << getOriginalName(arg, &F) << " ";
+                           	}
 
-					if (queried.find(dd) != queried.end()) continue;
-					queried.insert(dd);
+                           	errs() << " ";
 
-					while (stack.size() && stack.back().second != tmp.first) {
-						stack.pop_back();
-					}
+                        }
+
+                    }
+                }
+            }
+
+            for (int i = 0; i < store_list.size(); i ++) {
+                set<Value *> queried;
+                vector<pair<Value *, Value *>> to_query;
+
+                vector<pair<Value *, Value *>> stack;
+
+                if (StoreInst * store_inst = dyn_cast<StoreInst>(store_list[i])) {
+                
+	                MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_inst));
+
+	                if (MA && MA -> getID()){
+	                    errs().write('\n') << MA -> getID();
+	                    if (store_inst -> getOperand(1) -> hasName()) {
+	                        errs() << " " << store_inst -> getOperand(1) -> getName() << ": \n";
+	                    }
+	                    else {
+	                        errs() << " " << getOriginalName(store_inst -> getOperand(1), &F) << ": \n"; 
+	                    }
+	                }
+
+	                to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(MA)));
+	            }
+
+	            else {
+	            	errs().write('\n') << "call argument " << getOriginalName(store_list[i], &F) << ":\n";
+
+	            	to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(store_list[i])));
+	            }
+
+                while (to_query.size()) {
+
+                    pair<Value *, Value *> tmp = to_query.back();
+                    Value *dd = tmp.second;
+
+                    to_query.pop_back();
+
+                    if (queried.find(dd) != queried.end()) continue;
+                    queried.insert(dd);
+
+                    while (stack.size() && stack.back().second != tmp.first) {
+                        stack.pop_back();
+                    }
 
                     stack.push_back(tmp);
 
-					if (MemoryPhi *phi = dyn_cast<MemoryPhi>(dd)) {
-						for (auto &op : phi -> operands()) {
-							to_query.push_back(make_pair<Value *, Value *>(dyn_cast<Value>(dd), dyn_cast<Value>(op)));
-						}
+                    if (MemoryPhi *phi = dyn_cast<MemoryPhi>(dd)) {
+                        for (auto &op : phi -> operands()) {
+                            to_query.push_back(make_pair<Value *, Value *>(dyn_cast<Value>(dd), dyn_cast<Value>(op)));
+                        }
 
-						errs() << "phi\n";
-					}
-					
-					else if (MemoryDef *def = dyn_cast<MemoryDef>(dd)) {
+                        // errs() << "phi\n";
+                    }
+                    
+                    else if (MemoryDef *def = dyn_cast<MemoryDef>(dd)) {
 
-						if (def) {
+                        if (def) {
 
-							to_query.push_back(make_pair(dd, def -> getMemoryInst()));
-							
-						}
-					}
+                            to_query.push_back(make_pair(dd, def -> getMemoryInst()));
+                            
+                        }
+                    }
 
-					else if (Instruction* d = dyn_cast<Instruction>(dd)) {
+                    else if (Instruction* d = dyn_cast<Instruction>(dd)) {
 
-						if (d -> getOpcode () == Instruction::Store) {
-							
-							MemoryDef *MD = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(d));
-							errs() << "store " << MD -> getID();
+                        if (d -> getOpcode () == Instruction::Store) {
+                            
+                            MemoryDef *MD = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(d));
+                            // errs() << "store " << MD -> getID();
 
-							if (d -> getOperand(1) -> hasName()) {
-								errs() << " " << d -> getOperand(1) -> getName() << "\n";
-							}
-							else {
-								errs() << " " << getOriginalName(d -> getOperand(1), &F) << "\n";
-							}
+                            // if (d -> getOperand(1) -> hasName()) {
+                            //     errs() << " " << d -> getOperand(1) -> getName() << "\n";
+                            // }
+                            // else {
+                            //     errs() << " " << getOriginalName(d -> getOperand(1), &F) << "\n";
+                            // }
 
-							Value *v = d -> getOperand(0);
-							
-							if (Constant* CI = dyn_cast<Constant>(v)) {
-							
-								if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) {
+                            Value *v = d -> getOperand(0);
+                            
+                            if (Constant* CI = dyn_cast<Constant>(v)) {
+                            
+                                if (GlobalValue *gv = dyn_cast<GlobalValue>(CI)) {
 
-									printPath(stack, &F);
-									errs() << "related global value: " << gv -> getName() << "\n";
-                                    
-								}
-								else if (CI) {
-                                	printPath(stack, &F);
+                                    vector<pair<Value *, int>> critical_path = printPath(stack, &F);
+                                    errs() << "related global value: " << gv -> getName() << "\n";
+                                    critical_path.push_back(make_pair(v, 0));
+                                    critical_paths[&F][store_list[i]].push_back(critical_path);
+                                }
+                                else if (CI) {
+                                    printPath(stack, &F);
 
-									errs() << "related constant: " << CI -> getUniqueInteger() << "\n";
+                                    errs() << "related constant: " << CI -> getUniqueInteger() << "\n";
                                     //errs() << "\n";
-								}
-							
-								continue;
-							
-							}
-							else if (dyn_cast<Instruction>(v) == NULL) {
+                                }
+                            
+                                continue;
+                            
+                            }
+                            else if (dyn_cast<Instruction>(v) == NULL) {
 
-								printPath(stack, &F);
-								
-                                errs() << "related input value: " << getOriginalName(d -> getOperand(1), &F) << "\n";
+                                vector<pair<Value *, int>> potential_path = printPath(stack, &F);
 
-							}
-							else {
+                                errs() << "related input value: " << getOriginalName(d -> getOperand(1), &F);
 
-								to_query.push_back(make_pair(dd, dyn_cast<Instruction>(v)));
-							}
-						}
-						
+                                if (args.count(v) != 0) {
+                                    errs() << " argument #" << args[v] << "\n";
+                                }
 
-						else if (d -> getOpcode() == Instruction::Load) {
-							
-							errs() << "load";
-							if (d -> getOperand(0) -> hasName()) {
-								errs() << " " << d -> getOperand(0) -> getName() << ": \n";
-							}
-							else {
-								errs() << " " << getOriginalName(d -> getOperand(0), &F) << ": \n"; 
-							}
+                                potential_paths[&F][args[v]].push_back(potential_path);
+                            }
+                            else {
 
-							if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
+                                to_query.push_back(make_pair(dd, dyn_cast<Instruction>(v)));
+                            }
+                        }
+                        
+
+                        else if (d -> getOpcode() == Instruction::Load) {
+                            
+                            // errs() << "load";
+                            // if (d -> getOperand(0) -> hasName()) {
+                            //     errs() << " " << d -> getOperand(0) -> getName() << ": \n";
+                            // }
+                            // else {
+                            //     errs() << " " << getOriginalName(d -> getOperand(0), &F) << ": \n"; 
+                            // }
+
+                            if (GlobalValue *gv = dyn_cast<GlobalValue>(d -> getOperand(0))){
                                 
-								printPath(stack, &F);
-								errs() <<"related global value: " << gv ->getName() << "\n";
+                                vector<pair<Value *, int>> critical_path = printPath(stack, &F);
 
-								continue;
-							}	
-							MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
+                                critical_path.push_back(make_pair(d -> getOperand(0), 0));
+                                critical_paths[&F][store_list[i]].push_back(critical_path);
 
-							MemoryAccess *UO = MU -> getDefiningAccess();
-							
-							if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
+                                errs() <<"related global value: " << gv ->getName() << "\n";
 
-								to_query.push_back(make_pair(dd, MD));
+                                continue;
+                            }    
+                            MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
 
-							}
-							
-							else {
-								to_query.push_back(make_pair(dd, UO));
-							}
-						}
+                            MemoryAccess *UO = MU -> getDefiningAccess();
+                            
+                            if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
 
-						else {
+                                to_query.push_back(make_pair(dd, MD));
 
-							for (int j = 0; j < d -> getNumOperands(); ++ j) {
+                            }
+                            
+                            else {
+                                to_query.push_back(make_pair(dd, UO));
+                            }
+                        }
 
-								Value *v = d -> getOperand(j);
-							
-								if (Constant *c = dyn_cast<Constant>(v)) {
-							
-									if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
-                                		
-                                        printPath(stack, &F);
+                        else {
 
-										errs() << "related global value: " << gv -> getName() << "\n";
+                            for (int j = 0; j < d -> getNumOperands(); ++ j) {
 
-									}
-									else {
+                                Value *v = d -> getOperand(j);
+                            
+                                if (Constant *c = dyn_cast<Constant>(v)) {
+                            
+                                    if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
                                         
-									    printPath(stack, &F);
-	                                    errs() << "related constant: " << c -> getUniqueInteger() << "\n";
-									}
-							
-									continue;
-							
-								}
-							
-								else if (Instruction *inst = dyn_cast<Instruction>(v)) {
-									to_query.push_back(make_pair(dd, inst));
-								}
-							}
-						}
-					}
+                                        vector<pair<Value *, int>> critical_path = printPath(stack, &F);
 
-					
-				}
-			}
+                                        errs() << "related global value: " << gv -> getName() << "\n";
 
-			return false;
+                                        critical_path.push_back(make_pair(v, 0));
+                                        critical_paths[&F][store_list[i]].push_back(critical_path);
+
+                                    }
+                                    else {
+                                        
+                                        printPath(stack, &F);
+                                        errs() << "related constant: " << c -> getUniqueInteger() << "\n";
+                                    }
+                            
+                                    continue;
+                            
+                                }
+                            
+                                else if (Instruction *inst = dyn_cast<Instruction>(v)) {
+                                
+                                    to_query.push_back(make_pair(dd, inst));
+                                	
+                                }
+                                else {
+                                	vector<pair<Value *, int>> potential_path = printPath(stack, &F);
+
+                                	errs() << "related input value: " << getOriginalName(v, &F);
+
+	                                if (args.count(v) != 0) {
+	                                    errs() << " argument #" << args[v] << "\n";
+	                                }
+
+	                                potential_paths[&F][args[v]].push_back(potential_path);
+                                }
+                            }
+                        }
+                    }
+
+                    
+                }
+            }
+
+            return false;
         }
 
-        void printPath(vector<pair<Value *, Value *>> &v, Function *F) {
-        	for (auto tmp : v) {
-        		Value *val = tmp.second;
-        		if (MemoryDef *MD = dyn_cast<MemoryDef>(val)) {
-        			errs() << MD -> getID() << ": " << getOriginalName(MD -> getMemoryInst() -> getOperand(1), F) << " <- ";
-        		}
-        	}
+        vector<pair<Value *, int>> printPath(vector<pair<Value *, Value *>> &v, Function *F) {
+        	vector<pair<Value *, int>> ret;
+            for (auto tmp : v) {
+                Value *val = tmp.second;
+                if (MemoryDef *MD = dyn_cast<MemoryDef>(val)) {
+                    errs() << MD -> getID() << ": " << getOriginalName(MD -> getMemoryInst() -> getOperand(1), F) << " <- ";
+
+                    ret.push_back(make_pair(MD -> getMemoryInst() -> getOperand(1), MD -> getID()));
+                }
+            }
+
+            return ret;
         }
 
 
-		MDNode* findVar(Value* V, Function* F) {
-  			for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
-				BasicBlock *bb = &*iter;
-				for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++ iter_i){
-				Instruction* I = &*iter_i;
-				if (DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
-					if (DbgDeclare->getAddress() == V) return DbgDeclare->getVariable();
-				} else if (DbgValueInst* DbgValue = dyn_cast<DbgValueInst>(I)) {
-					if (DbgValue->getValue() == V) return DbgValue->getVariable();
-				}}
-			}
-			return NULL;
-		}
+        MDNode* findVar(Value* V, Function* F) {
+              for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
+                BasicBlock *bb = &*iter;
+                for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++ iter_i){
+                    Instruction* I = &*iter_i;
+                    if (DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
+                        if (DbgDeclare->getAddress() == V) return DbgDeclare -> getVariable();
+                    } 
+                    else if (DbgValueInst* DbgValue = dyn_cast<DbgValueInst>(I)) {
+                        if (DbgValue->getValue() == V) return DbgValue -> getVariable();
+                    }
+                }
+            }
+            return NULL;
+        }
 
-		StringRef getOriginalName(Value* V, Function* F) {
-			if (V -> hasName()) return V -> getName();
-			MDNode* Var = findVar(V, F);
-  			if (!Var) return "UNKNOWN";
+        StringRef getOriginalName(Value* V, Function* F) {
+        	if (GlobalValue *gv = dyn_cast<GlobalValue>(V)) return gv -> getName();
+            if (V -> hasName()) return V -> getName();
+            MDNode* Var = findVar(V, F);
+            
+            if (!Var) return "UNKNOWN";
 
-  			return dyn_cast<DIVariable>(Var) -> getName();
-		}
+            return dyn_cast<DIVariable>(Var) -> getName();
+        }
 
         void getAnalysisUsage(AnalysisUsage &AU) const {
-			AU.addRequired<MemorySSAWrapperPass>();
+            AU.addRequired<MemorySSAWrapperPass>();
         }
     };
 
