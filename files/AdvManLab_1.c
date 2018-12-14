@@ -14,11 +14,9 @@ bool Mode_Semi = 0;
 int var;
 
 void Cell_1(bool k) {
+  int v = k;
   // function body omitted for simplicity
-  if  (kk) {
-    v = v + 1;
-    k = 0;
-  }
+  
 }
 
 void Cell_2(int input) {
@@ -48,7 +46,7 @@ void Cell_2(int input) {
       }
     }
     if (Cam2.EN) {
-      Cam2.ACC + = 2000;
+      Cam2.ACC += 2000;
       Cam2.DN = Cam2.ACC >= Cam2.PRE;
     }
 
