@@ -101,7 +101,9 @@ namespace {
 		        			if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
 		        				for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
 	                           		Value *arg = call_inst -> getArgOperand(i);
+
 	                           		for (auto path : critical_paths[F][arg]) {
+
 	                           			for (int i = path.size() - 1; i >= 0; i --) {
 	                           				temp_stack.push_back(Transition(F, path[i].first, path[i].second));
 	                           			}
@@ -125,7 +127,15 @@ namespace {
 
         void callDependence(Function *F, int arg_num) {
 
+            // map<Value *, vector<Value*, int>> rec_paths;
+
         	for (auto path : potential_paths[F][arg_num]) {
+
+                if (path.front().second == -1) {
+
+                    continue;
+                }
+
     			for (auto t : temp_stack) {
     				errs() << t.F -> getName() << ": " << t.k << " " << getOriginalName(t.V, t.F) << " -> ";
     			}
@@ -137,6 +147,36 @@ namespace {
     			errs() << "\n";
         		
         	}
+
+
+            for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
+                BasicBlock* bb = &(*iter);
+
+                for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++iter_i) {
+                    Instruction* inst = &(*iter_i);
+
+                    if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
+                        for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+                            Value *arg = call_inst -> getArgOperand(i);
+                            for (auto path : potential_paths[F][arg_num]) {
+
+                                for (int i = path.size() - 1; i >= 0; i --) {
+                                    temp_stack.push_back(Transition(F, path[i].first, path[i].second));
+                                }
+                                // errs() << "at least I'm here" << call_inst -> getCalledFunction() -> getName() << "\n";
+                                callDependence(call_inst -> getCalledFunction(), i);
+
+                                for (int i = path.size() - 1; i >= 0; i --) {
+                                    temp_stack.pop_back();
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+                
+            
         }
 
 
@@ -193,9 +233,14 @@ namespace {
 
                     }
                 }
+
+
             }
 
+            bool call_arg_flag = false;
+
             for (int i = 0; i < store_list.size(); i ++) {
+                call_arg_flag = false;
                 set<Value *> queried;
                 vector<pair<Value *, Value *>> to_query;
 
@@ -219,6 +264,8 @@ namespace {
 	            }
 
 	            else {
+                    call_arg_flag = true;
+
 	            	errs().write('\n') << "call argument " << getOriginalName(store_list[i], &F) << ":\n";
 
 	            	to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(store_list[i])));
@@ -294,7 +341,17 @@ namespace {
                             }
                             else if (dyn_cast<Instruction>(v) == NULL) {
 
-                                vector<pair<Value *, int>> potential_path = printPath(stack, &F);
+                                vector<pair<Value *, int>> potential_path;
+
+                                if (call_arg_flag) {
+                                    potential_path.push_back(make_pair(store_list[i], -1));
+                                }
+
+                                vector<pair<Value *, int>> tmp_vect = printPath(stack, &F);
+
+                                for (auto d : tmp_vect) {
+                                    potential_path.push_back(d);
+                                }
 
                                 errs() << "related input value: " << getOriginalName(d -> getOperand(1), &F);
 
@@ -381,7 +438,17 @@ namespace {
                                 	
                                 }
                                 else {
-                                	vector<pair<Value *, int>> potential_path = printPath(stack, &F);
+                                    vector<pair<Value *, int>> potential_path;
+
+                                    if (call_arg_flag) {
+                                        potential_path.push_back(make_pair(store_list[i], -1));
+                                    }
+
+                                    vector<pair<Value *, int>> tmp_vect = printPath(stack, &F);
+
+                                    for (auto d : tmp_vect) {
+                                        potential_path.push_back(d);
+                                    }
 
                                 	errs() << "related input value: " << getOriginalName(v, &F);
 
