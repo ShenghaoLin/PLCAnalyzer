@@ -9,9 +9,8 @@ bool Camera2_Inspect = 0;
 bool PPX2 = 0;
 bool RFIDTP2 = 0;
 bool Mode_Start = 0;
-bool kk = 1;
 bool Mode_Semi = 0;
-int var;
+int Cell_2_input;
 
 void Cell_1(bool k) {
   int v = k;
@@ -60,7 +59,7 @@ void Cell_2(int input) {
 }
 
 int main() {
-  var = 100;
+  Cell_2_input = 100;
   Cell_1();
-  Cell_2(var);
+  Cell_2(Cell_2_input);
 }

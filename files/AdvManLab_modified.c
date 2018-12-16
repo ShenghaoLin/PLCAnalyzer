@@ -9,18 +9,19 @@ bool Camera2_Inspect = 0;
 bool PPX2 = 0;
 bool RFIDTP2 = 0;
 bool Mode_Start = 0;
-int kk = 1;
 bool Mode_Semi = 0;
-int var;
+int Cell_1_input;
+int Cell_2_input;
 
+void Cell_1(int input);
 void Cell_2(int input);
 
-void Cell_1(int k) {
-  int v = k;
-  int b = 3;
-  Cell_2(v);
-  if (v) {
-    b = b * 100000;
+void Cell_1(int input) {
+  int var = input;
+  int angle = 3;
+  Cell_2(var);
+  if (var) {
+    angle = angle * 100000;
   }
   // function body omitted for simplicity
 }
@@ -68,7 +69,7 @@ void Cell_2(int input) {
 }
 
 int main() {
-  var = 100;
-  Cell_1(kk);
-  Cell_2(var);
+  Cell_2_input = 100;
+  Cell_1(Cell_1_input);
+  Cell_2(Cell_2_input);
 }

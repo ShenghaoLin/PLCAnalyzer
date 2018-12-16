@@ -1,2 +1,13 @@
 
 .DS_Store
+*.profraw
+*.profdata
+CMakeCache.txt
+CMakeLists.txt.user
+CMakeFiles
+*.cmake
+Makefile
+CMakeScripts
+Testing
+install_manifest.txt
+compile_commands.json
