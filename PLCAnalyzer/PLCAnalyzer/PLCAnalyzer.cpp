@@ -53,6 +53,7 @@ namespace {
         static char ID;
         map<Function*, map<Value*, vector<vector<pair<Value *, int>>>>> critical_paths;
         map<Function*, map<int, vector<vector<pair<Value *, int>>>>> potential_paths;
+        map<Function*, map<Value*, bool>> critical_values;
 
         vector<Transition> temp_stack;
 
@@ -107,7 +108,7 @@ namespace {
 	                           			for (int i = path.size() - 1; i >= 0; i --) {
 	                           				temp_stack.push_back(Transition(F, path[i].first, path[i].second));
 	                           			}
-	                           			// errs() << "at least I'm here" << call_inst -> getCalledFunction() -> getName() << "\n";
+
 	                           			callDependence(call_inst -> getCalledFunction(), i);
 
 	                           			for (int i = path.size() - 1; i >= 0; i --) {
@@ -123,6 +124,18 @@ namespace {
             }
 
             return false;
+        }
+
+        void controlFlowDependence(Function *F) {
+
+            map<BasicBlock *, vector<BasicBlock *>> anti_flow;
+
+            for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
+                
+                BasicBlock *bb = &(*b);
+            
+                
+            }
         }
 
         void callDependence(Function *F, int arg_num) {
@@ -141,6 +154,7 @@ namespace {
     			}
 
     			for (int i = path.size() - 1; i >= 0; i --) {
+                    if (path[i].second == -1) continue;
     				errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
     				if (i != 0) errs() << " -> ";
     			}
@@ -157,16 +171,21 @@ namespace {
 
                     if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
                         for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+
                             Value *arg = call_inst -> getArgOperand(i);
                             for (auto path : potential_paths[F][arg_num]) {
 
+                                if (path.front().first != arg) continue;
+
                                 for (int i = path.size() - 1; i >= 0; i --) {
+                                    if (path[i].second == -1) continue;
                                     temp_stack.push_back(Transition(F, path[i].first, path[i].second));
                                 }
                                 // errs() << "at least I'm here" << call_inst -> getCalledFunction() -> getName() << "\n";
                                 callDependence(call_inst -> getCalledFunction(), i);
 
                                 for (int i = path.size() - 1; i >= 0; i --) {
+                                    if (path[i].second == -1) continue;
                                     temp_stack.pop_back();
                                 }
                             }
@@ -174,8 +193,7 @@ namespace {
 
                     }
                 }
-            }
-                
+            }                
             
         }
 
@@ -243,10 +261,12 @@ namespace {
                 call_arg_flag = false;
                 set<Value *> queried;
                 vector<pair<Value *, Value *>> to_query;
-
+                vector<Value *> load_stack;
                 vector<pair<Value *, Value *>> stack;
 
                 if (StoreInst * store_inst = dyn_cast<StoreInst>(store_list[i])) {
+
+                    load_stack.push_back(store_inst -> getOperand(1));
                 
 	                MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_inst));
 
@@ -282,6 +302,9 @@ namespace {
                     queried.insert(dd);
 
                     while (stack.size() && stack.back().second != tmp.first) {
+                        if (dyn_cast<LoadInst>(stack.back().second)) {
+                            load_stack.pop_back();
+                        }
                         stack.pop_back();
                     }
 
@@ -297,10 +320,16 @@ namespace {
                     
                     else if (MemoryDef *def = dyn_cast<MemoryDef>(dd)) {
 
-                        if (def) {
+                        if (!(def -> getID())) {
+                            continue;
+                        }
 
-                            to_query.push_back(make_pair(dd, def -> getMemoryInst()));
-                            
+                        if (def && def -> getMemoryInst() -> getOperand(1) == load_stack.back()) {
+
+                            to_query.push_back(make_pair(dd, def -> getMemoryInst()));   
+                        }
+                        else {
+                            to_query.push_back(make_pair(dd, def -> getDefiningAccess()));
                         }
                     }
 
@@ -389,8 +418,10 @@ namespace {
 
                                 continue;
                             }    
-                            MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
 
+                            load_stack.push_back(dyn_cast<LoadInst>(d) -> getOperand(0));
+
+                            MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(d));
                             MemoryAccess *UO = MU -> getDefiningAccess();
                             
                             if (MemoryDef *MD = dyn_cast<MemoryDef>(UO)) {
