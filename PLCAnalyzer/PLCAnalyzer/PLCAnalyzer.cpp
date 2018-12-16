@@ -79,9 +79,12 @@ namespace {
                     vector<vector<pair<Value *, int>>> paths = iter -> second;
 
                     critical_values[F][v] = true;
+
+
+                    if (dyn_cast<StoreInst>(v)) errs() << "FFF";
                     
                     for (auto path : paths) {
-                        errs() << v << ": ";
+                        errs() << getOriginalName(v, F) << ": ";
                         for (auto element : path) {
                             errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
                         }
@@ -344,9 +347,9 @@ namespace {
                 }
 
                 for (int i = path.size() - 1; i >= 0; i --) {
-                    if (path[i].second == -1) continue;
+                    if (path[i].second < 0) continue;
                     errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
-                    if (i != 0) errs() << " -> ";
+                    if (i != 1) errs() << " -> ";
                 }
 
                 critical_values[F][path.front().first] = true;
@@ -371,14 +374,14 @@ namespace {
                                 if (path.front().first != arg) continue;
 
                                 for (int i = path.size() - 1; i >= 0; i --) {
-                                    if (path[i].second == -1) continue;
+                                    if (path[i].second < 0) continue;
                                     temp_stack.push_back(Transition(F, path[i].first, path[i].second));
                                 }
                                 // errs() << "at least I'm here" << call_inst -> getCalledFunction() -> getName() << "\n";
                                 callDependence(call_inst -> getCalledFunction(), i);
 
                                 for (int i = path.size() - 1; i >= 0; i --) {
-                                    if (path[i].second == -1) continue;
+                                    if (path[i].second < 0) continue;
                                     temp_stack.pop_back();
                                 }
                             }
@@ -458,6 +461,8 @@ namespace {
                 vector<pair<Value *, Value *>> stack;
 
                 if (StoreInst * store_inst = dyn_cast<StoreInst>(store_list[i])) {
+
+                    // errs() << "atleast\n";
 
                     load_stack.push_back(store_inst -> getOperand(1));
                 
@@ -549,7 +554,7 @@ namespace {
                                     vector<pair<Value *, int>> critical_path = printPath(stack, &F);
                                     errs() << "related global value: " << gv -> getName() << "\n";
                                     critical_path.push_back(make_pair(v, 0));
-                                    critical_paths[&F][store_list[i]].push_back(critical_path);
+                                    critical_paths[&F][dyn_cast<Value>(store_list[i])].push_back(critical_path);
                                 }
                                 else if (CI) {
                                     printPath(stack, &F);
@@ -567,6 +572,9 @@ namespace {
 
                                 if (call_arg_flag) {
                                     potential_path.push_back(make_pair(store_list[i], -1));
+                                }
+                                else {
+                                    potential_path.push_back(make_pair(store_list[i], -2));
                                 }
 
                                 vector<pair<Value *, int>> tmp_vect = printPath(stack, &F);
@@ -605,7 +613,7 @@ namespace {
                                 vector<pair<Value *, int>> critical_path = printPath(stack, &F);
 
                                 critical_path.push_back(make_pair(d -> getOperand(0), 0));
-                                critical_paths[&F][store_list[i]].push_back(critical_path);
+                                critical_paths[&F][dyn_cast<Value>(store_list[i])].push_back(critical_path);
 
                                 errs() <<"related global value: " << gv ->getName() << "\n";
 
@@ -643,7 +651,7 @@ namespace {
                                         errs() << "related global value: " << gv -> getName() << "\n";
 
                                         critical_path.push_back(make_pair(v, 0));
-                                        critical_paths[&F][store_list[i]].push_back(critical_path);
+                                        critical_paths[&F][dyn_cast<Value>(store_list[i])].push_back(critical_path);
 
                                     }
                                     else {
@@ -666,6 +674,9 @@ namespace {
 
                                     if (call_arg_flag) {
                                         potential_path.push_back(make_pair(store_list[i], -1));
+                                    }
+                                    else {
+                                        potential_path.push_back(make_pair(store_list[i], -2));
                                     }
 
                                     vector<pair<Value *, int>> tmp_vect = printPath(stack, &F);

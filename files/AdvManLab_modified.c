@@ -17,7 +17,11 @@ void Cell_2(int input);
 
 void Cell_1(int k) {
   int v = k;
+  int b = 3;
   Cell_2(v);
+  if (v) {
+    b = b * 100000;
+  }
   // function body omitted for simplicity
 }
 
