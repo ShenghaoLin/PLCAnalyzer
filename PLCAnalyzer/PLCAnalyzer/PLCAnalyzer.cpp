@@ -77,7 +77,10 @@ namespace {
                 	errs() << "\n";
                 	Value *v = iter -> first;
                 	vector<vector<pair<Value *, int>>> paths = iter -> second;
-                	for (auto path : paths) {
+
+                    critical_values[F][v] = true;
+                	
+                    for (auto path : paths) {
                 		errs() << v << ": ";
                 		for (auto element : path) {
                 			errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
@@ -99,7 +102,7 @@ namespace {
 		        		for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++iter_i) {
 		        			Instruction* inst = &(*iter_i);
 
-		        			if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
+		                	if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
 		        				for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
 	                           		Value *arg = call_inst -> getArgOperand(i);
 
@@ -123,6 +126,18 @@ namespace {
                 }
             }
 
+            errs() << "\n\nPossible Critical Control Flow:\n";
+
+            for (Module::iterator f = M.begin(); f != M.end(); f ++) {
+
+                Function *F = &(*f);
+                string s = F -> getName();
+                if (s.find("llvm.dbg") != 0) {
+                    errs() << "\n" << F -> getName() << ": \n\n";
+                    controlFlowDependence(F);
+                }
+            }
+
             return false;
         }
 
@@ -133,9 +148,184 @@ namespace {
             for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
                 
                 BasicBlock *bb = &(*b);
-            
-                
+                TerminatorInst *term_inst = dyn_cast<TerminatorInst>(bb -> getTerminator());
+
+                for (int i = 0; i < term_inst -> getNumSuccessors(); ++i) {
+                    anti_flow[term_inst -> getSuccessor(i)].push_back(bb);
+                }
             }
+
+            MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>(*F).getMSSA();
+
+            int bb_num = 0;
+            for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
+
+                set<Value *> related_critical_values;
+                
+                set<BasicBlock *> visited;
+                vector<BasicBlock *> block_stack;
+
+                block_stack.push_back(&(*b));
+
+                while (block_stack.size()) {
+                    BasicBlock *cur_block = block_stack.back();
+                    block_stack.pop_back();
+
+                    for (auto precessor : anti_flow[cur_block]) {
+                        
+                        if (visited.count(precessor) > 0) continue;
+                        else visited.insert(precessor);
+
+                        BranchInst *br_inst = dyn_cast<BranchInst>(precessor -> getTerminator());
+                        if (br_inst && br_inst -> isConditional()) {
+
+                            block_stack.push_back(precessor);
+
+                            set<Value *> temp = criticalValuesFromV(br_inst -> getCondition(), F, MSSA);
+
+                            for (auto v : temp) {
+                                related_critical_values.insert(v);
+                            }
+                        }
+                    }
+                }
+
+                set<Value *> effected_vars;
+
+                BasicBlock *bb = &(*b);
+
+                for (auto iter = bb -> begin(); iter != bb -> end(); ++ iter) {
+
+                    Instruction *inst = &(*iter);
+                    
+                    if (StoreInst *store_inst = dyn_cast<StoreInst>(inst)) {
+
+                        effected_vars.insert(store_inst -> getOperand(1));
+                    }
+                }
+
+                if (effected_vars.size() && related_critical_values.size()) {
+                    errs() << bb_num << ": \nRelated Critical Values: ";
+                    for (auto v : related_critical_values) {
+                        if (StoreInst * store_inst = dyn_cast<StoreInst>(v)) {
+                            errs() << getOriginalName(store_inst -> getOperand(1), F) << " ";
+                        }
+                        else {
+                            errs() << getOriginalName(v, F) << " ";
+                        }
+                    }
+                    errs() << "\nRelated Variables: ";
+
+                    for (auto v : effected_vars) 
+                        errs() << getOriginalName(v, F) << " ";
+
+                    errs() << "\n\n";
+
+                }
+
+
+
+                bb_num++;
+
+            }
+
+        }
+
+        set<Value *> criticalValuesFromV(Value *v, Function *F, MemorySSA *MSSA) {
+
+            set<Value *> related_value;
+
+            vector<pair<Value *, Value *>> stack;
+            vector<Value *> load_stack;
+            vector<pair<Value *, Value *>> search_stack;
+            set<Value *> queried;
+
+            stack.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(v)));
+
+            while (stack.size()) {
+                Value *pre = stack.back().first;
+                Value *cur = stack.back().second;
+                stack.pop_back();
+
+                if (queried.count(cur) != 0) continue;
+                else queried.insert(cur);
+
+                while (search_stack.size() && search_stack.back().second != pre) {
+                    
+                    if (dyn_cast<LoadInst>(search_stack.back().second))
+                        load_stack.pop_back();
+
+                    search_stack.pop_back();
+                }
+
+                search_stack.push_back(make_pair(pre, cur));
+                
+                if (MemoryPhi *phi = dyn_cast<MemoryPhi>(cur)) {
+                    for (auto &op : phi -> operands()) {
+                        stack.push_back(make_pair(cur, dyn_cast<Value>(op)));
+                    }
+                }
+                else if (MemoryDef *def = dyn_cast<MemoryDef>(cur)) {
+
+                    if (!(def -> getID())) {
+                        continue;
+                    }
+
+                    // successful load
+                    if (def && def -> getMemoryInst() -> getOperand(1) == load_stack.back()) {
+
+                        if (critical_values[F][def -> getMemoryInst()]) {
+                            related_value.insert(def -> getMemoryInst());
+                        }   
+                    }
+                    else {
+                        stack.push_back(make_pair(cur, def -> getDefiningAccess()));
+                    }
+                }
+
+                else if (LoadInst *load_inst = dyn_cast<LoadInst>(cur)) {
+
+                    if (GlobalValue *gv = dyn_cast<GlobalValue>(load_inst -> getOperand(0))){
+
+                        related_value.insert(gv);
+                    }    
+
+                    load_stack.push_back(load_inst -> getOperand(0));
+
+                    MemoryUse *MU = dyn_cast<MemoryUse>(MSSA -> getMemoryAccess(load_inst));
+                    MemoryAccess *UO = MU -> getDefiningAccess();
+
+                    stack.push_back(make_pair(cur, UO));
+                }
+
+                else if (Instruction *inst = dyn_cast<Instruction>(cur)) {
+                    for (int j = 0; j < inst -> getNumOperands(); ++ j) {
+
+                        Value *v = inst-> getOperand(j);
+                    
+                        if (Constant *c = dyn_cast<Constant>(v)) {
+                    
+                            if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {    
+                                related_value.insert(gv);
+                            }
+                            
+                            //A real constant otherwise
+                            continue;
+                        }
+                    
+                        else if (Instruction *next_inst = dyn_cast<Instruction>(v)) {
+                        
+                            stack.push_back(make_pair(inst, next_inst));
+                        }
+
+                        else {
+                            related_value.insert(v);
+                        }
+                    }
+                }
+            }
+
+            return related_value;
         }
 
         void callDependence(Function *F, int arg_num) {
@@ -158,6 +348,9 @@ namespace {
     				errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
     				if (i != 0) errs() << " -> ";
     			}
+
+                critical_values[F][path.front().first] = true;
+
     			errs() << "\n";
         		
         	}
