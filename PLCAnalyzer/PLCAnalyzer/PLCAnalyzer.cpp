@@ -39,11 +39,11 @@ using namespace llvm;
 #define DEBUG_TYPE "plcanalyzer"
 
 struct Transition{
-	Function *F;
-	Value *V;
-	int k;
+    Function *F;
+    Value *V;
+    int k;
 
-	Transition(Function *_F, Value *_V, int _k) : F(_F), V(_V), k(_k) {}
+    Transition(Function *_F, Value *_V, int _k) : F(_F), V(_V), k(_k) {}
 };
 
 namespace {
@@ -60,7 +60,7 @@ namespace {
         PLCAnalyzer() : ModulePass(ID) {}
 
         bool runOnModule(Module &M) override {
-        	
+            
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
                 //MemorySSAWrapperPass *MSSA_pass = &getAnalysis<MemorySSAWrapperPass>(*f);
                 //MemorySSA *MSSA = &(MSSA_pass -> getMSSA());
@@ -74,55 +74,55 @@ namespace {
                 }
 
                 for (auto iter = critical_paths[F].begin(); iter != critical_paths[F].end(); ++iter) {
-                	errs() << "\n";
-                	Value *v = iter -> first;
-                	vector<vector<pair<Value *, int>>> paths = iter -> second;
+                    errs() << "\n";
+                    Value *v = iter -> first;
+                    vector<vector<pair<Value *, int>>> paths = iter -> second;
 
                     critical_values[F][v] = true;
-                	
+                    
                     for (auto path : paths) {
-                		errs() << v << ": ";
-                		for (auto element : path) {
-                			errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
-                		}
-                	}
+                        errs() << v << ": ";
+                        for (auto element : path) {
+                            errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
+                        }
+                    }
                 }
             }
 
             errs() << "\n";
 
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
-            	Function *F = &(*f);
+                Function *F = &(*f);
                 string s = F -> getName();
 
                 if (s.find("llvm.dbg") != 0) {
-                	for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
-		        		BasicBlock* bb = &(*iter);
+                    for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
+                        BasicBlock* bb = &(*iter);
 
-		        		for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++iter_i) {
-		        			Instruction* inst = &(*iter_i);
+                        for (auto iter_i = bb -> begin(); iter_i != bb -> end(); ++iter_i) {
+                            Instruction* inst = &(*iter_i);
 
-		                	if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
-		        				for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
-	                           		Value *arg = call_inst -> getArgOperand(i);
+                            if (CallInst* call_inst = dyn_cast<CallInst>(inst)) {
+                                for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+                                       Value *arg = call_inst -> getArgOperand(i);
 
-	                           		for (auto path : critical_paths[F][arg]) {
+                                       for (auto path : critical_paths[F][arg]) {
 
-	                           			for (int i = path.size() - 1; i >= 0; i --) {
-	                           				temp_stack.push_back(Transition(F, path[i].first, path[i].second));
-	                           			}
+                                           for (int i = path.size() - 1; i >= 0; i --) {
+                                               temp_stack.push_back(Transition(F, path[i].first, path[i].second));
+                                           }
 
-	                           			callDependence(call_inst -> getCalledFunction(), i);
+                                           callDependence(call_inst -> getCalledFunction(), i);
 
-	                           			for (int i = path.size() - 1; i >= 0; i --) {
-	                           				temp_stack.pop_back();
-	                           			}
-	                           		}
-	                           	}
+                                           for (int i = path.size() - 1; i >= 0; i --) {
+                                               temp_stack.pop_back();
+                                           }
+                                       }
+                                   }
 
-		        			}
-		        		}
-		        	}
+                            }
+                        }
+                    }
                 }
             }
 
@@ -332,28 +332,28 @@ namespace {
 
             // map<Value *, vector<Value*, int>> rec_paths;
 
-        	for (auto path : potential_paths[F][arg_num]) {
+            for (auto path : potential_paths[F][arg_num]) {
 
                 if (path.front().second == -1) {
 
                     continue;
                 }
 
-    			for (auto t : temp_stack) {
-    				errs() << t.F -> getName() << ": " << t.k << " " << getOriginalName(t.V, t.F) << " -> ";
-    			}
+                for (auto t : temp_stack) {
+                    errs() << t.F -> getName() << ": " << t.k << " " << getOriginalName(t.V, t.F) << " -> ";
+                }
 
-    			for (int i = path.size() - 1; i >= 0; i --) {
+                for (int i = path.size() - 1; i >= 0; i --) {
                     if (path[i].second == -1) continue;
-    				errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
-    				if (i != 0) errs() << " -> ";
-    			}
+                    errs() << F -> getName() << ": " << path[i].second << " " << getOriginalName(path[i].first, F);
+                    if (i != 0) errs() << " -> ";
+                }
 
                 critical_values[F][path.front().first] = true;
 
-    			errs() << "\n";
-        		
-        	}
+                errs() << "\n";
+                
+            }
 
 
             for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
@@ -403,8 +403,8 @@ namespace {
 
             int num = 0;
             for (auto iter = F.arg_begin(); iter != F.arg_end(); ++iter) {
-            	Argument *arg = *(&iter);
-            	errs() << getOriginalName(arg, &F) << " " << arg -> getName() << " " ;
+                Argument *arg = *(&iter);
+                errs() << getOriginalName(arg, &F) << " " << arg -> getName() << " " ;
                 args[arg] = num ++;
             }
             errs() << "\n";
@@ -430,15 +430,15 @@ namespace {
 
                             arguments[call_inst -> getCalledFunction()] = vector<Value *>();
 
-                           	for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
-                           		Value *arg = call_inst -> getArgOperand(i);
-                           		arguments[call_inst -> getCalledFunction()].push_back(arg);
+                               for (int i = 0; i < call_inst -> getNumArgOperands(); ++ i) {
+                                   Value *arg = call_inst -> getArgOperand(i);
+                                   arguments[call_inst -> getCalledFunction()].push_back(arg);
 
-                           		store_list.push_back(arg);
-                           	    //errs() << getOriginalName(arg, &F) << " ";
-                           	}
+                                   store_list.push_back(arg);
+                                   //errs() << getOriginalName(arg, &F) << " ";
+                               }
 
-                           	errs() << " ";
+                               errs() << " ";
 
                         }
 
@@ -461,28 +461,28 @@ namespace {
 
                     load_stack.push_back(store_inst -> getOperand(1));
                 
-	                MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_inst));
+                    MemoryDef *MA = dyn_cast<MemoryDef>(MSSA -> getMemoryAccess(store_inst));
 
-	                if (MA && MA -> getID()){
-	                    errs().write('\n') << MA -> getID();
-	                    if (store_inst -> getOperand(1) -> hasName()) {
-	                        errs() << " " << store_inst -> getOperand(1) -> getName() << ": \n";
-	                    }
-	                    else {
-	                        errs() << " " << getOriginalName(store_inst -> getOperand(1), &F) << ": \n"; 
-	                    }
-	                }
+                    if (MA && MA -> getID()){
+                        errs().write('\n') << MA -> getID();
+                        if (store_inst -> getOperand(1) -> hasName()) {
+                            errs() << " " << store_inst -> getOperand(1) -> getName() << ": \n";
+                        }
+                        else {
+                            errs() << " " << getOriginalName(store_inst -> getOperand(1), &F) << ": \n"; 
+                        }
+                    }
 
-	                to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(MA)));
-	            }
+                    to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(MA)));
+                }
 
-	            else {
+                else {
                     call_arg_flag = true;
 
-	            	errs().write('\n') << "call argument " << getOriginalName(store_list[i], &F) << ":\n";
+                    errs().write('\n') << "call argument " << getOriginalName(store_list[i], &F) << ":\n";
 
-	            	to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(store_list[i])));
-	            }
+                    to_query.push_back(make_pair<Value *, Value *>(NULL, dyn_cast<Value>(store_list[i])));
+                }
 
                 while (to_query.size()) {
 
@@ -659,7 +659,7 @@ namespace {
                                 else if (Instruction *inst = dyn_cast<Instruction>(v)) {
                                 
                                     to_query.push_back(make_pair(dd, inst));
-                                	
+                                    
                                 }
                                 else {
                                     vector<pair<Value *, int>> potential_path;
@@ -674,13 +674,13 @@ namespace {
                                         potential_path.push_back(d);
                                     }
 
-                                	errs() << "related input value: " << getOriginalName(v, &F);
+                                    errs() << "related input value: " << getOriginalName(v, &F);
 
-	                                if (args.count(v) != 0) {
-	                                    errs() << " argument #" << args[v] << "\n";
-	                                }
+                                    if (args.count(v) != 0) {
+                                        errs() << " argument #" << args[v] << "\n";
+                                    }
 
-	                                potential_paths[&F][args[v]].push_back(potential_path);
+                                    potential_paths[&F][args[v]].push_back(potential_path);
                                 }
                             }
                         }
@@ -694,7 +694,7 @@ namespace {
         }
 
         vector<pair<Value *, int>> printPath(vector<pair<Value *, Value *>> &v, Function *F) {
-        	vector<pair<Value *, int>> ret;
+            vector<pair<Value *, int>> ret;
             for (auto tmp : v) {
                 Value *val = tmp.second;
                 if (MemoryDef *MD = dyn_cast<MemoryDef>(val)) {
@@ -725,7 +725,7 @@ namespace {
         }
 
         StringRef getOriginalName(Value* V, Function* F) {
-        	if (GlobalValue *gv = dyn_cast<GlobalValue>(V)) return gv -> getName();
+            if (GlobalValue *gv = dyn_cast<GlobalValue>(V)) return gv -> getName();
             if (V -> hasName()) return V -> getName();
             MDNode* Var = findVar(V, F);
             
