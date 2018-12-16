@@ -20,8 +20,8 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/IntrinsicInst.h"
-
-
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
@@ -72,29 +72,41 @@ namespace {
                 if (s.find("llvm.dbg") != 0) {
                     functionMemoryDependence(*f);
                 }
+            }
 
-                for (auto iter = critical_paths[F].begin(); iter != critical_paths[F].end(); ++iter) {
-                    errs() << "\n";
-                    Value *v = iter -> first;
-                    vector<vector<pair<Value *, int>>> paths = iter -> second;
+            errs() << "\n\n-------------------------------------\n";
+            errs() << "Summury:\n\nIntra-cell critical paths:\n";
 
-                    critical_values[F][v] = true;
+            for (Module::iterator f = M.begin(); f != M.end(); f ++) {
 
+                Function *F = &(*f);
+                string s = F -> getName();
+                if (s.find("llvm.dbg") != 0) {
+                    errs() << "\n" << s << ": \n";
 
-                    if (dyn_cast<StoreInst>(v)) errs() << "FFF";
-                    
-                    for (auto path : paths) {
-                        errs() << getOriginalName(v, F) << ": ";
-                        for (auto element : path) {
-                            errs() << " <- " << getOriginalName(element.first, F) << " " << element.second;
+                    for (auto iter = critical_paths[F].begin(); iter != critical_paths[F].end(); ++iter) {
+                        
+                        Value *v = iter -> first;
+                        vector<vector<pair<Value *, int>>> paths = iter -> second;
+
+                        critical_values[F][v] = true;
+                        
+                        for (auto path : paths) {
+                            for (int i = paths.size() - 1; i >= 0; i --) {
+                                auto element = path[i];
+                                errs() << getOriginalName(element.first, F) << " " << element.second << " -> ";
+                            }
+                            errs() << getOriginalName(v, F) << "\n";
                         }
+
                     }
                 }
             }
 
-            errs() << "\n";
+            errs() << "\n\nInter-cell critical paths:\n\n";
 
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
+
                 Function *F = &(*f);
                 string s = F -> getName();
 
@@ -144,6 +156,115 @@ namespace {
             return false;
         }
 
+        map<BasicBlock *, set<BasicBlock *>> postDominatorsAnalysis(Function *F) {
+
+            map<BasicBlock *, set<BasicBlock *>> ret;
+            map<BasicBlock *, int> block_number;
+
+            BasicBlock *exit_block = NULL;
+
+            for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
+                
+                BasicBlock *bb = &(*b);
+
+                vector<BasicBlock *> bb_path;
+                set<BasicBlock *> post_dom;
+                set<BasicBlock *> visited;
+
+                int i = 0;
+
+                for (Function::iterator iter = F -> begin(); iter != F -> end(); iter++) {
+
+                    BasicBlock *bb_temp = &(*iter);
+                    ret[bb].insert(bb_temp);
+
+                    block_number[bb_temp] = i ++;
+                }
+
+                if (dyn_cast<TerminatorInst>(bb -> getTerminator()) -> getNumSuccessors() == 0){
+                    ret[bb] = set<BasicBlock *>();
+                    exit_block = bb;
+                    ret[bb].insert(bb);
+                }
+            }
+
+            bool change = true;
+
+            while (change) {
+                change = false;
+
+                for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
+                    
+                    BasicBlock *bb = &(*b);
+
+                    if (bb == exit_block) continue;
+
+                    TerminatorInst *term_inst = dyn_cast<TerminatorInst>(bb -> getTerminator());
+
+                    set<BasicBlock *> temp;
+
+                    for (Function::iterator iter = F -> begin(); iter != F -> end(); iter++) {
+
+                        temp.insert(&(*iter));
+                    }
+
+                    for (int i = 0; i < term_inst -> getNumSuccessors(); ++ i) {
+                        BasicBlock *suc_bb = term_inst -> getSuccessor(i);
+
+                        set<BasicBlock *> to_erase;
+
+                        for (auto pdom : temp) {
+                            if (ret[suc_bb].count(pdom) == 0) {
+                                to_erase.insert(pdom);
+                            }
+                        }
+
+                        for (auto pdom : to_erase) {
+                            temp.erase(pdom);
+                        }
+                    }
+
+                    temp.insert(bb);
+
+                    if (!set_compare(temp, ret[bb])) {
+                        change = true;
+                        ret[bb] = temp;
+                    }
+                }
+
+            }
+
+            // for (Function::iterator b = F -> begin(); b != F -> end(); b++) {
+                
+            //     BasicBlock *bb = &(*b);
+
+            //     errs() << block_number[bb] << ": \n";
+
+            //     for (auto d : ret[bb]) {
+            //         errs() << block_number[d] << " ";
+            //     }
+            //     errs() << "\n";
+
+               
+            // }
+
+            return ret;
+        }
+
+        bool set_compare(set<BasicBlock *> &a, set<BasicBlock *> &b) {
+            for (auto element : b) {
+                if (a.count(element) == 0) {
+                    return false;
+                }
+            }
+            for (auto element : a) {
+                if (b.count(element) == 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         void controlFlowDependence(Function *F) {
 
             map<BasicBlock *, vector<BasicBlock *>> anti_flow;
@@ -158,6 +279,8 @@ namespace {
                 }
             }
 
+            map<BasicBlock *, set<BasicBlock *>> post_dom = postDominatorsAnalysis(F);
+
             MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>(*F).getMSSA();
 
             int bb_num = 0;
@@ -166,30 +289,54 @@ namespace {
                 set<Value *> related_critical_values;
                 
                 set<BasicBlock *> visited;
-                vector<BasicBlock *> block_stack;
+                vector<pair<BasicBlock *, BasicBlock *>> block_stack;
+                vector<pair<BasicBlock *, BasicBlock *>> search_stack;
+                vector<BasicBlock *> post_dominators;
 
-                block_stack.push_back(&(*b));
+                block_stack.push_back(make_pair<BasicBlock *, BasicBlock *>(NULL, &(*b)));
+                post_dominators.push_back(&(*b));
 
                 while (block_stack.size()) {
-                    BasicBlock *cur_block = block_stack.back();
+                    pair<BasicBlock *, BasicBlock *> cur_pair = block_stack.back();
                     block_stack.pop_back();
+                    BasicBlock *cur_block = cur_pair.second;
+
+                    while (search_stack.size() && search_stack.back().second != cur_pair.first) {
+
+                        if (post_dominators.size() && 
+                            search_stack.back().second == post_dominators.back()) {
+                            post_dominators.pop_back();
+                        }
+
+                        search_stack.pop_back();
+                    }
+
+                    search_stack.push_back(cur_pair);
 
                     for (auto precessor : anti_flow[cur_block]) {
                         
                         if (visited.count(precessor) > 0) continue;
                         else visited.insert(precessor);
 
+                        block_stack.push_back(make_pair(cur_block, precessor));
+
                         BranchInst *br_inst = dyn_cast<BranchInst>(precessor -> getTerminator());
-                        if (br_inst && br_inst -> isConditional()) {
 
-                            block_stack.push_back(precessor);
+                        if ((br_inst && br_inst -> isConditional()) && post_dom[precessor].count(post_dominators.back()) == 0) {
 
-                            set<Value *> temp = criticalValuesFromV(br_inst -> getCondition(), F, MSSA);
+                            //errs() << "hello? \n";
+                            post_dominators.push_back(precessor);
 
-                            for (auto v : temp) {
-                                related_critical_values.insert(v);
+                            if (br_inst -> isConditional()) {
+                                set<Value *> temp = criticalValuesFromV(br_inst -> getCondition(), F, MSSA);
+
+                                for (auto v : temp) {
+                                    related_critical_values.insert(v);
+                                }
                             }
                         }
+                        // if (post_dom.count(make_pair(post_dominators.back(), precessor)) == 0)
+                        //     post_dominators.push_back(precessor);
                     }
                 }
 
@@ -207,8 +354,8 @@ namespace {
                     }
                 }
 
-                if (effected_vars.size() && related_critical_values.size()) {
-                    errs() << bb_num << ": \nRelated Critical Values: ";
+                if (related_critical_values.size()&& effected_vars.size()) {
+                    errs() << "BasicBlock #" << bb_num << ": \nRelated Critical Values: ";
                     for (auto v : related_critical_values) {
                         if (StoreInst * store_inst = dyn_cast<StoreInst>(v)) {
                             errs() << getOriginalName(store_inst -> getOperand(1), F) << " ";
