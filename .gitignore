@@ -1,2 +1,8 @@
 
 .DS_Store
+*.profraw
+*.profdata
+CMakeCache.txt
+CMakeFiles
+*.cmake
+Makefile
