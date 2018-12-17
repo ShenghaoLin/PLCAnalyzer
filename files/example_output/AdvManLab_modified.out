@@ -1,0 +1,154 @@
+Cell_1
+UNKNOWN  
+Cell_2
+ 
+1 input: 
+1: input <- related input value: input argument #0
+
+2 var: 
+2: var <- 1: input <- related input value: input argument #0
+
+3 angle: 
+3: angle <- related constant: 3
+
+call argument UNKNOWN:
+2: var <- 1: input <- related input value: input argument #0
+
+5 angle: 
+5: angle <- related constant: 100000
+5: angle <- 3: angle <- related constant: 3
+
+
+Cell_2
+UNKNOWN  
+
+1 input: 
+1: input <- related input value: input argument #0
+
+2 Cam2_DN: 
+2: Cam2_DN <- related constant: 0
+
+3 Cam2_EN: 
+3: Cam2_EN <- related constant: 0
+
+4 Cam2_TT: 
+4: Cam2_TT <- related constant: 0
+
+5 Cam2_ACC: 
+5: Cam2_ACC <- related constant: 0
+
+6 Cam2_PRE: 
+6: Cam2_PRE <- related constant: 0
+
+7 i: 
+7: i <- related constant: 0
+
+8 i: 
+8: i <- related constant: 1
+8: i <- 7: i <- related constant: 0
+
+9 Camera2_Inspect: 
+9: Camera2_Inspect <- related constant: 1
+
+10 Cam2_EN: 
+10: Cam2_EN <- related constant: 1
+
+11 Cam2_TT: 
+11: Cam2_TT <- related constant: 1
+
+12 Cam2_PRE: 
+12: Cam2_PRE <- related constant: 3000
+
+13 Cam2_ACC: 
+13: Cam2_ACC <- related constant: 0
+
+14 Cam2_ACC: 
+14: Cam2_ACC <- related constant: 2000
+14: Cam2_ACC <- 8: i <- 7: i <- 6: Cam2_PRE <- 5: Cam2_ACC <- related constant: 0
+14: Cam2_ACC <- 13: Cam2_ACC <- related constant: 0
+
+15 Cam2_DN: 
+15: Cam2_DN <- 8: i <- 7: i <- 6: Cam2_PRE <- related constant: 0
+15: Cam2_DN <- 13: Cam2_ACC <- 12: Cam2_PRE <- related constant: 3000
+15: Cam2_DN <- 14: Cam2_ACC <- related constant: 2000
+
+16 Camera2_Inspect: 
+16: Camera2_Inspect <- related constant: 0
+16: Camera2_Inspect <- related constant: 1
+16: Camera2_Inspect <- 1: input <- related input value: input argument #0
+
+
+main
+
+Cell_1
+ Cell_2
+ 
+1 Cell_2_input: 
+1: Cell_2_input <- related constant: 100
+
+call argument UNKNOWN:
+related global value: Cell_1_input
+
+call argument UNKNOWN:
+related global value: Cell_2_input
+
+
+----------------------------------------
+----------------------------------------
+Summary:
+
+Global variables usage analysis:
+
+The following global variables should remain writable:
+Camera2_Inspect Cell_2_input 
+
+The following global variables can be set to readable:
+PPX2 RFIDTP2 Mode_Start Mode_Semi Cell_1_input 
+
+The following global variables can be set to local:
+Camera1_Inspect 
+
+
+Intra-cell critical paths:
+
+Cell_1: 
+
+Cell_2: 
+
+main: 
+Cell_1_input 0 -> UNKNOWN
+Cell_2_input 0 -> UNKNOWN
+
+
+Inter-cell critical paths:
+
+main: 0 Cell_1_input -> Cell_1: 1 input
+main: 0 Cell_1_input -> Cell_1: 1 input -> Cell_1: 2 var
+main: 0 Cell_1_input -> Cell_1: 1 input -> Cell_1: 2 var -> Cell_2: 1 input
+main: 0 Cell_1_input -> Cell_1: 1 input -> Cell_1: 2 var -> Cell_2: 1 input -> Cell_2: 16 Camera2_Inspect
+main: 0 Cell_2_input -> Cell_2: 1 input
+main: 0 Cell_2_input -> Cell_2: 1 input -> Cell_2: 16 Camera2_Inspect
+
+
+Possible critical control flows:
+
+Cell_1: 
+
+BasicBlock #1: 
+Related Critical Values: var 
+Related Variables: angle 
+
+
+Cell_2: 
+
+BasicBlock #8: 
+Related Critical Values: PPX2 RFIDTP2 Mode_Start Mode_Semi 
+Related Variables: Camera2_Inspect Cam2_EN Cam2_TT Cam2_ACC Cam2_PRE 
+
+BasicBlock #16: 
+Related Critical Values: Mode_Start Mode_Semi 
+Related Variables: Camera2_Inspect 
+
+
+main: 
+

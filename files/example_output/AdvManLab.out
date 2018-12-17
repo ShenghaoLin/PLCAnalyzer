@@ -1,0 +1,99 @@
+
+
+Cell_1
+
+
+
+Cell_2
+
+
+1 UNKNOWN: 
+1: UNKNOWN <- related constant: 0
+
+2 UNKNOWN: 
+2: UNKNOWN <- related constant: 0
+
+3 UNKNOWN: 
+3: UNKNOWN <- related constant: 0
+
+4 i: 
+4: i <- related constant: 0
+
+5 i: 
+5: i <- related constant: 1
+5: i <- 4: i <- related constant: 0
+
+6 Camera2_Inspect: 
+6: Camera2_Inspect <- related constant: 1
+
+7 UNKNOWN: 
+7: UNKNOWN <- related constant: 1
+
+8 UNKNOWN: 
+8: UNKNOWN <- related constant: 1
+
+9 UNKNOWN: 
+9: UNKNOWN <- related constant: 3000
+
+10 UNKNOWN: 
+10: UNKNOWN <- related constant: 0
+
+11 UNKNOWN: 
+11: UNKNOWN <- related constant: 2000
+
+12 UNKNOWN: 
+
+13 Camera2_Inspect: 
+13: Camera2_Inspect <- related constant: 1
+
+
+main
+
+Cell_1
+ Cell_2
+ 
+
+----------------------------------------
+----------------------------------------
+Summary:
+
+Global variables usage analysis:
+
+The following global variables should remain writable:
+Camera2_Inspect 
+
+The following global variables can be set to readable:
+PPX2 RFIDTP2 Mode_Start Mode_Semi 
+
+
+Intra-cell critical paths:
+
+Cell_1: 
+
+Cell_2: 
+
+main: 
+
+
+Inter-cell critical paths:
+
+
+
+Possible critical control flows:
+
+Cell_1: 
+
+
+Cell_2: 
+
+BasicBlock #8: 
+Related Critical Values: PPX2 RFIDTP2 Mode_Start Mode_Semi 
+Related Variables: Camera2_Inspect UNKNOWN UNKNOWN UNKNOWN UNKNOWN 
+
+BasicBlock #16: 
+Related Critical Values: Mode_Start Mode_Semi 
+Related Variables: Camera2_Inspect 
+
+
+main: 
+

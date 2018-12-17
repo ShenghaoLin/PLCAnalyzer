@@ -27,7 +27,7 @@ void Cell_2() {
   int i = 0;
 
   while (i++ < 5) {
-    printf("Loop #%d\n", i);
+    // printf("Loop #%d\n", i);
 
     if (Mode_Start || Mode_Semi) {
       if ((PPX2 && RFIDTP2) || Cam2.TT) {

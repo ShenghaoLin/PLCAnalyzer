@@ -5,6 +5,7 @@
 //
 // global vars, e.g., global tags
 //
+bool Camera1_Inspect = 0;
 bool Camera2_Inspect = 0;
 bool PPX2 = 0;
 bool RFIDTP2 = 0;

@@ -1,6 +1,7 @@
 //The pass file for final project of EECS583 in Fall 2018
 //@auther: Shenghao Lin, Xumiao Zhang
 
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
@@ -62,6 +63,11 @@ namespace {
         //Values that are determined to be critical
         map<Function*, map<Value*, bool>> critical_values;
 
+        //Global variable analysis
+        set<Value *> writable_global_vars;
+        set<Value *> readable_global_vars;
+        set<Value *> global_to_local_vars;
+
         //A temperory stack used to pass paths among recursions
         vector<Transition> temp_stack;
 
@@ -81,8 +87,13 @@ namespace {
             }
 
             errs() << "\n\n----------------------------------------\n";
-            errs() << "----------------------------------------\n";
-            errs() << "Summary:\n\nIntra-cell critical paths:\n";
+            errs() << "----------------------------------------\nSummary:\n";
+
+            globalLocalAnalysis(&M);
+
+            printGlobalVarsAnalysis();
+
+            errs() << "\nIntra-cell critical paths:\n";
 
             // Critical Paths inside a function(cell)
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -154,7 +165,7 @@ namespace {
                 }
             }
 
-            errs() << "\n\nPossible Critical Control Flow:\n";
+            errs() << "\n\nPossible critical control flows:\n";
 
             //Call control flow analysis for each function
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -170,6 +181,102 @@ namespace {
             return false;
         }
 
+
+        // Print wrapper of global variable analysis
+        void printGlobalVarsAnalysis() {
+            errs() << "\nGlobal variables usage analysis:";
+
+            // Writable global variables
+            if (writable_global_vars.size()) {
+                errs() << "\n\nThe following global variables should remain writable:\n";
+                for (auto gv : writable_global_vars) {
+                    errs() << gv -> getName() << " ";
+                }
+            }
+
+            // Readable global variables
+            if (readable_global_vars.size()) {
+                errs() << "\n\nThe following global variables can be set to readable:\n";
+                for (auto gv : readable_global_vars) {
+                    errs() << gv -> getName() << " ";
+                }
+            }
+
+            // Localizable global variables
+            if (global_to_local_vars.size()) {
+                errs() << "\n\nThe following global variables can be set to local:\n";
+                for (auto gv : global_to_local_vars) {
+                    errs() << gv -> getName() << " ";
+                }
+            }
+
+            errs() << "\n\n";
+
+        }
+
+
+        // The analysis of global variable settings
+        void globalLocalAnalysis(Module *M) {
+
+            // Set of all global variable "mentioned" in the module
+            set<Value *> used_global_vars;
+
+            // Iterate through every instruction
+            for (auto f = M -> begin(); f != M -> end(); f ++) {
+
+                Function *F = &(*f);
+                string s = F -> getName();
+                if (s.find("llvm.dbg") != 0) {
+
+                    for (auto bb = F -> begin(); bb != F -> end(); ++ bb) {
+
+                        BasicBlock *BB = &(*bb);
+
+                        for (auto iter = BB -> begin(); iter != BB -> end(); ++ iter) {
+                            Instruction *inst = &(*iter);
+
+                            // Check the use of global var
+                            for (int i = 0; i < inst -> getNumOperands(); i ++) {
+
+                                Value *v = inst -> getOperand(i);
+
+                                if (GlobalVariable *gv = dyn_cast<GlobalVariable>(v)) {
+                                    used_global_vars.insert(gv);
+                                }
+
+                            }
+
+                            // check the def of global var
+                            if (StoreInst *store_inst = dyn_cast<StoreInst>(inst)) {
+
+                                Value *v = store_inst -> getOperand(1);
+
+                                if (GlobalVariable *gv = dyn_cast<GlobalVariable>(v)) {
+                                    writable_global_vars.insert(gv);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // readable = used - writable
+            for (auto gv : used_global_vars) {
+                if (writable_global_vars.count(gv) == 0) {
+                    readable_global_vars.insert(gv);
+                }
+            }
+
+            // localizable = all - used
+            for (auto iter = M -> getGlobalList().begin(); iter != M -> getGlobalList().end(); iter ++) {
+                GlobalVariable *gv = &(*iter);
+
+                if (used_global_vars.count(gv) == 0) {
+                    global_to_local_vars.insert(gv);
+                }
+            }
+
+        }
 
         // Function that computes the post dominators for all basic blocks in a function
         // (LLVM library post dominator tree should also work)

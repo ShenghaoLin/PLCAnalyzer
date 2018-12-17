@@ -1,0 +1,94 @@
+
+
+AS_284E_AOI
+UNKNOWN  UNKNOWN  
+
+1 in: 
+1: in <- related input value: in argument #0
+
+2 Inp_Scaled_Speed_At_400Hz: 
+2: Inp_Scaled_Speed_At_400Hz <- related input value: Inp_Scaled_Speed_At_400Hz argument #1
+
+3 Set_SpeedOper: 
+3: Set_SpeedOper <- related constant: 10
+
+4 Set_SpeedProg: 
+4: Set_SpeedProg <- related constant: 20
+
+5 out_speed: 
+5: out_speed <- related constant: 0
+
+6 out_speed: 
+6: out_speed <- 2: Inp_Scaled_Speed_At_400Hz <- related input value: Inp_Scaled_Speed_At_400Hz argument #1
+6: out_speed <- related constant: 4000
+6: out_speed <- 3: Set_SpeedOper <- related constant: 10
+
+7 out_speed: 
+7: out_speed <- 2: Inp_Scaled_Speed_At_400Hz <- related input value: Inp_Scaled_Speed_At_400Hz argument #1
+7: out_speed <- related constant: 4000
+7: out_speed <- 4: Set_SpeedProg <- related constant: 20
+
+
+main
+
+AS_284E_AOI
+ 
+1 UNKNOWN: 
+1: UNKNOWN <- related constant: 0
+
+2 Sts_OperatorModeEnabled: 
+2: Sts_OperatorModeEnabled <- related constant: 1
+
+3 Sts_ProgramModeEnabled: 
+3: Sts_ProgramModeEnabled <- related constant: 0
+
+4 scaled_speed: 
+4: scaled_speed <- related constant: 200
+
+call argument in:
+related constant: 1
+
+call argument UNKNOWN:
+related global value: scaled_speed
+
+
+----------------------------------------
+----------------------------------------
+Summary:
+
+Global variables usage analysis:
+
+The following global variables should remain writable:
+Sts_OperatorModeEnabled Sts_ProgramModeEnabled scaled_speed 
+
+
+Intra-cell critical paths:
+
+AS_284E_AOI: 
+
+main: 
+scaled_speed 0 -> UNKNOWN
+
+
+Inter-cell critical paths:
+
+main: 0 scaled_speed -> AS_284E_AOI: 2 Inp_Scaled_Speed_At_400Hz
+main: 0 scaled_speed -> AS_284E_AOI: 2 Inp_Scaled_Speed_At_400Hz -> AS_284E_AOI: 6 out_speed
+main: 0 scaled_speed -> AS_284E_AOI: 2 Inp_Scaled_Speed_At_400Hz -> AS_284E_AOI: 7 out_speed
+
+
+Possible critical control flows:
+
+AS_284E_AOI: 
+
+BasicBlock #1: 
+Related Critical Values: Sts_OperatorModeEnabled 
+Related Variables: out_speed 
+
+BasicBlock #3: 
+Related Critical Values: Sts_ProgramModeEnabled 
+Related Variables: out_speed 
+
+
+main: 
+
