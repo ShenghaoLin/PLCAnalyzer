@@ -65,7 +65,7 @@ void Cell_2(int input) {
     if (Mode_Start || Mode_Semi) {
       if (Cam2_DN) {
         // when will it be 1?
-        Camera2_Inspect = 1 + input;
+        Camera2_Inspect = 1 + input; //Quality control
       }
     }
   }

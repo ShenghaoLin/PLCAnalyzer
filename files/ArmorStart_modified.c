@@ -26,7 +26,7 @@ void AS_284E_AOI(Inp_AS_284E *in, int Inp_Scaled_Speed_At_400Hz) {
   // omitted operations
   //
 
-  int out_speed = 0;
+  int out_speed = 0; //Conveyor speed
 
   if (Sts_OperatorModeEnabled) {
     out_speed = (Set_SpeedOper * 4000) / Inp_Scaled_Speed_At_400Hz;

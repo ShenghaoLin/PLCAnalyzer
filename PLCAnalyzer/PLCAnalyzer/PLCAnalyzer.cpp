@@ -93,7 +93,7 @@ namespace {
 
             printGlobalVarsAnalysis();
 
-            errs() << "\nIntra-procedure critical paths:\n";
+            errs() << "\nIntra-cell critical paths:\n";
 
             // Critical Paths inside a function(cell)
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -122,7 +122,7 @@ namespace {
                 }
             }
 
-            errs() << "\n\nInter-procedure critical paths:\n\n";
+            errs() << "\n\nInter-cell critical paths:\n\n";
 
             // Critical paths connecting by calls 
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -200,7 +200,7 @@ namespace {
                 for (auto gv_pair : readable_global_vars) {
 
                     if (gv_pair.second == NULL) {
-                        errs() << gv_pair.first -> getName() << ": No function needs writing accesibility\n";
+                        errs() << gv_pair.first -> getName() << ": No function needs writing accessibility\n";
                     }
 
                     else {
@@ -215,7 +215,7 @@ namespace {
                 for (auto gv_pair : global_to_local_vars) {
 
                     if (gv_pair.second == NULL) {
-                        errs() << gv_pair.first -> getName() << ": No function needs reading accesibility\n";
+                        errs() << gv_pair.first -> getName() << ": No function needs reading accessibility\n";
                     }
                     else {
                         errs() << gv_pair.first -> getName() << ": Local in " << gv_pair.second -> getName() << "\n";
