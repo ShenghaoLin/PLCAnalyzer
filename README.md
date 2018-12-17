@@ -1,6 +1,6 @@
 # PLCAnalyzer
 
-This project is designed for PLC program ...
+This project is designed for PLC programs...
 
 How to Use:
 -----------
