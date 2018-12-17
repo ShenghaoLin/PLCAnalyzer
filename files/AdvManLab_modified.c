@@ -21,8 +21,10 @@ void Cell_1(int input) {
   int var = input;
   int angle = 3;
   Cell_2(var);
-  if (var) {
+  if (var || Mode_Semi || Mode_Start) {
     angle = angle * 100000;
+    RFIDTP2 = 1;
+    PPX2 = 1;
   }
   // function body omitted for simplicity
 }
@@ -71,6 +73,7 @@ void Cell_2(int input) {
 
 int main() {
   Cell_2_input = 100;
+  PPX2 = 0;
   Cell_1(Cell_1_input);
   Cell_2(Cell_2_input);
 }

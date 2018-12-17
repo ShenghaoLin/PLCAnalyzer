@@ -65,8 +65,8 @@ namespace {
 
         //Global variable analysis
         set<Value *> writable_global_vars;
-        set<Value *> readable_global_vars;
-        set<Value *> global_to_local_vars;
+        map<Value *, Function *> readable_global_vars;
+        map<Value *, Function *> global_to_local_vars;
 
         //A temperory stack used to pass paths among recursions
         vector<Transition> temp_stack;
@@ -190,23 +190,36 @@ namespace {
             if (writable_global_vars.size()) {
                 errs() << "\n\nThe following global variables should remain writable:\n";
                 for (auto gv : writable_global_vars) {
-                    errs() << gv -> getName() << " ";
+                    errs() << gv -> getName() << "\n";
                 }
             }
 
             // Readable global variables
             if (readable_global_vars.size()) {
                 errs() << "\n\nThe following global variables can be set to readable:\n";
-                for (auto gv : readable_global_vars) {
-                    errs() << gv -> getName() << " ";
+                for (auto gv_pair : readable_global_vars) {
+
+                    if (gv_pair.second == NULL) {
+                        errs() << gv_pair.first -> getName() << ": No function needs writing accesibility\n";
+                    }
+
+                    else {
+                        errs() << gv_pair.first -> getName() << ": Writable by " << gv_pair.second -> getName() << "\n";
+                    }
                 }
             }
 
             // Localizable global variables
             if (global_to_local_vars.size()) {
                 errs() << "\n\nThe following global variables can be set to local:\n";
-                for (auto gv : global_to_local_vars) {
-                    errs() << gv -> getName() << " ";
+                for (auto gv_pair : global_to_local_vars) {
+
+                    if (gv_pair.second == NULL) {
+                        errs() << gv_pair.first -> getName() << ": No function needs reading accesibility\n";
+                    }
+                    else {
+                        errs() << gv_pair.first -> getName() << ": Local in " << gv_pair.second -> getName() << "\n";
+                    }
                 }
             }
 
@@ -219,7 +232,7 @@ namespace {
         void globalLocalAnalysis(Module *M) {
 
             // Set of all global variable "mentioned" in the module
-            set<Value *> used_global_vars;
+            map<Value *, set<Function *>> used_global_vars, defined_global_vars;
 
             // Iterate through every instruction
             for (auto f = M -> begin(); f != M -> end(); f ++) {
@@ -241,7 +254,7 @@ namespace {
                                 Value *v = inst -> getOperand(i);
 
                                 if (GlobalVariable *gv = dyn_cast<GlobalVariable>(v)) {
-                                    used_global_vars.insert(gv);
+                                    used_global_vars[gv].insert(F);
                                 }
 
                             }
@@ -252,7 +265,7 @@ namespace {
                                 Value *v = store_inst -> getOperand(1);
 
                                 if (GlobalVariable *gv = dyn_cast<GlobalVariable>(v)) {
-                                    writable_global_vars.insert(gv);
+                                    defined_global_vars[gv].insert(F);
                                 }
                             }
                         }
@@ -260,19 +273,36 @@ namespace {
                 }
             }
 
-            // readable = used - writable
-            for (auto gv : used_global_vars) {
-                if (writable_global_vars.count(gv) == 0) {
-                    readable_global_vars.insert(gv);
+            // writable = defined in different cells
+            for (auto gv_pair : defined_global_vars) {
+                if ((gv_pair.second).size() > 1) {
+                    writable_global_vars.insert(gv_pair.first);
                 }
             }
 
-            // localizable = all - used
+            // global = used in different cells
+            // readable = global - writable
+            for (auto gv_pair : used_global_vars) {
+                if (gv_pair.second.size() > 1 && writable_global_vars.count(gv_pair.first) == 0) {
+
+                    if (defined_global_vars[gv_pair.first].size() == 0) {
+                        readable_global_vars[gv_pair.first] = NULL;
+                    }
+                    else {
+                        readable_global_vars[gv_pair.first] = (Function *) (*defined_global_vars[gv_pair.first].begin());
+                    }
+                }
+            }
+
+            // localizable = all - global
             for (auto iter = M -> getGlobalList().begin(); iter != M -> getGlobalList().end(); iter ++) {
                 GlobalVariable *gv = &(*iter);
 
-                if (used_global_vars.count(gv) == 0) {
-                    global_to_local_vars.insert(gv);
+                if (used_global_vars[gv].size() == 0) {
+                    global_to_local_vars[gv] = NULL;
+                }
+                else if (used_global_vars[gv].size() == 1) {
+                    global_to_local_vars[gv] = (Function *) (*used_global_vars[gv].begin());
                 }
             }
 
