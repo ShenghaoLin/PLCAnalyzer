@@ -2,7 +2,8 @@
 
 This project is designed for PLC program ...
 
-##How to Use:
+How to Use:
+-----------
 
 - Go to directory PLCAnalyzer (which contains a file CMakeList.txt and a folder PLCAnalyzer)
 
