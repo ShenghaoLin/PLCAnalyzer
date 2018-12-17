@@ -93,7 +93,7 @@ namespace {
 
             printGlobalVarsAnalysis();
 
-            errs() << "\nIntra-cell critical paths:\n";
+            errs() << "\nIntra-procedure critical paths:\n";
 
             // Critical Paths inside a function(cell)
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -122,7 +122,7 @@ namespace {
                 }
             }
 
-            errs() << "\n\nInter-cell critical paths:\n\n";
+            errs() << "\n\nInter-procedure critical paths:\n\n";
 
             // Critical paths connecting by calls 
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
