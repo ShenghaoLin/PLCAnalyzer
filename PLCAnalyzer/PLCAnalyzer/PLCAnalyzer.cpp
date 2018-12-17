@@ -80,8 +80,9 @@ namespace {
                 }
             }
 
-            errs() << "\n\n-------------------------------------\n";
-            errs() << "Summury:\n\nIntra-cell critical paths:\n";
+            errs() << "\n\n----------------------------------------\n";
+            errs() << "----------------------------------------\n";
+            errs() << "Summary:\n\nIntra-cell critical paths:\n";
 
             // Critical Paths inside a function(cell)
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -277,7 +278,7 @@ namespace {
 
 
         //Control flow analysis: try to find out the control flows that are related with
-        //critical values, and the values that may be effected by those control flows.
+        //critical values, and the values that may be affected by those control flows.
         //i.e. if flag is critical, in the following example, v is affected:
         //if (flag) v ++;
         void controlFlowDependence(Function *F) {
