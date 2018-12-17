@@ -9,4 +9,4 @@ How to Use:
 
 - Use command "cmake ." and "make" to generate the pass. 
 
-- Go back to the root of directory, use "sh run.sh $file-name$". Note that do not include any extension in the file-name.
+- Go back to the root of directory, use "sh run.sh $file-name$". Note that the file-name should not include any extension.
