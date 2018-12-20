@@ -93,7 +93,7 @@ namespace {
 
             printGlobalVarsAnalysis();
 
-            errs() << "\nIntra-cell critical paths:\n";
+            errs() << "\nIntra-procedure critical paths:\n";
 
             // Critical Paths inside a function(cell)
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -122,7 +122,7 @@ namespace {
                 }
             }
 
-            errs() << "\n\nInter-cell critical paths:\n\n";
+            errs() << "\n\nInter-procedure critical paths:\n\n";
 
             // Critical paths connecting by calls 
             for (Module::iterator f = M.begin(); f != M.end(); f ++) {
@@ -1093,6 +1093,7 @@ namespace {
 
         //Used by getOriginalName, get the dbg information of the given value
         MDNode* findVar(Value* V, Function* F) {
+
             for (auto iter = F -> begin(); iter != F -> end(); ++iter) {
 
                 BasicBlock *bb = &(*iter);
@@ -1102,23 +1103,26 @@ namespace {
                     Instruction* I = &*iter_i;
                     
                     // llvm.debug.delare
-                    if (DbgDeclareInst* DbgDeclare = dyn_cast<DbgDeclareInst>(I)) {
+                    if (DbgDeclareInst* dbg_declare = dyn_cast<DbgDeclareInst>(I)) {
                 
-                        if (DbgDeclare->getAddress() == V) return DbgDeclare -> getVariable();
+                        if (dbg_declare -> getAddress() == V) 
+                            return dbg_declare -> getVariable();
                     } 
 
                     // llvm.debug.value
-                    else if (DbgValueInst* DbgValue = dyn_cast<DbgValueInst>(I)) {
+                    else if (DbgValueInst* dbg_value = dyn_cast<DbgValueInst>(I)) {
 
-                        if (DbgValue->getValue() == V) return DbgValue -> getVariable();
+                        if (dbg_value -> getValue() == V) 
+                            return dbg_value -> getVariable();
                     }
                 }
             }
+
             return NULL;
         }
 
 
-        //Find the original name of a variable using debugi information
+        //Find the original name of a variable using debug information
         StringRef getOriginalName(Value* V, Function* F) {
 
             // Global var
@@ -1127,11 +1131,13 @@ namespace {
             // with name
             if (V -> hasName()) return V -> getName();
 
-            MDNode* Var = findVar(V, F);
+            MDNode* var = findVar(V, F);
             
-            if (!Var) return "UNKNOWN";
+            if (var == NULL) 
+                return "UNKNOWN";
 
-            return dyn_cast<DIVariable>(Var) -> getName();
+            else 
+                return dyn_cast<DIVariable>(Var) -> getName();
         }
 
         void getAnalysisUsage(AnalysisUsage &AU) const {
